@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Trading Game</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .frame { border: 1px solid #ccc; padding: 10px; margin-bottom: 20px; }
+        .stock-row { display: flex; align-items: center; margin-bottom: 5px; }
+        .stock-row > div { margin-right: 10px; }
+        button { margin-left: 5px; }
+        #stock-graph { width: 100%; height: 200px; background: #f8f8f8; border: 1px solid #ddd; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Stock Trading Game</h1>
+    <div id="cash" class="frame"></div>
+    <div class="frame">
+        <h2>Market</h2>
+        <canvas id="stock-graph"></canvas>
+        <div id="market"></div>
+    </div>
+    <div class="frame">
+        <h2>Portfolio</h2>
+        <div id="portfolio"></div>
+    </div>
+
+    <script>
+        const stocks = {
+            "AAPL": 190.0,
+            "GOOG": 2800.0,
+            "TSLA": 700.0,
+            "AMZN": 3300.0,
+            "MSFT": 320.0
+        };
+
+        let prices = { ...stocks };
+        let cash = 10000;
+        let portfolio = {};
+
+        const priceHistory = {};
+        for (let stock in stocks) {
+            priceHistory[stock] = [stocks[stock]];
+        }
+
+        function updatePrices() {
+            for (let stock in prices) {
+                let change = (Math.random() * 4 - 2); // -2 to +2
+                prices[stock] = Math.max(1, +(prices[stock] + change).toFixed(2));
+                priceHistory[stock].push(prices[stock]);
+                if (priceHistory[stock].length > 50) priceHistory[stock].shift();
+            }
+        }
+
+        function drawStockGraph() {
+            const canvas = document.getElementById('stock-graph');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const portfolioStocks = Object.keys(portfolio).filter(s => portfolio[s] > 0);
+            if (portfolioStocks.length === 0) return;
+
+            const colors = ["#e74c3c", "#3498db", "#2ecc71", "#f1c40f", "#9b59b6"];
+
+            let maxLen = 0;
+            let minPrice = Infinity, maxPrice = -Infinity;
+
+            for (let stock of portfolioStocks) {
+                maxLen = Math.max(maxLen, priceHistory[stock].length);
+                for (let price of priceHistory[stock]) {
+                    minPrice = Math.min(minPrice, price);
+                    maxPrice = Math.max(maxPrice, price);
+                }
+            }
+            if (maxPrice === minPrice) maxPrice += 1;
+
+            let idx = 0;
+            for (let stock of portfolioStocks) {
+                ctx.beginPath();
+                ctx.strokeStyle = colors[idx % colors.length];
+                const hist = priceHistory[stock];
+                for (let j = 0; j < hist.length; j++) {
+                    let x = (j / (maxLen - 1)) * (canvas.width - 40) + 20;
+                    let y = canvas.height - 20 - ((hist[j] - minPrice) / (maxPrice - minPrice)) * (canvas.height - 40);
+                    if (j === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+                ctx.fillStyle = colors[idx % colors.length];
+                ctx.fillText(stock, 25 + idx * 60, 15);
+                idx++;
+            }
+        }
+
+        function renderCash() {
+            document.getElementById('cash').textContent = `Cash: $${cash.toFixed(2)}`;
+        }
+
+        function renderMarket() {
+            const marketDiv = document.getElementById('market');
+            marketDiv.innerHTML = '';
+            for (let stock in prices) {
+                const row = document.createElement('div');
+                row.className = 'stock-row';
+                row.innerHTML = `
+                    <div>${getStockEmoji(stock)} ${stock}</div>
+                    <div>$${prices[stock].toFixed(2)}</div>
+                    <button onclick="buyStock('${stock}')">Buy</button>
+                    <button onclick="sellStock('${stock}')">Sell</button>
+                `;
+                marketDiv.appendChild(row);
+            }
+        }
+
+        function renderPortfolio() {
+            const portfolioDiv = document.getElementById('portfolio');
+            portfolioDiv.innerHTML = '';
+            for (let stock in portfolio) {
+                if (portfolio[stock] > 0) {
+                    const row = document.createElement('div');
+                    row.textContent = `${stock}: ${portfolio[stock]} shares`;
+                    portfolioDiv.appendChild(row);
+                }
+            }
+        }
+
+        function getStockEmoji(stock) {
+            switch (stock) {
+                case "AAPL": return "🍏";
+                case "GOOG": return "🔍";
+                case "TSLA": return "🚗";
+                case "AMZN": return "📦";
+                case "MSFT": return "🪟";
+                default: return "📈";
+            }
+        }
+
+        function buyStock(stock) {
+            const price = prices[stock];
+            if (cash >= price) {
+                cash -= price;
+                portfolio[stock] = (portfolio[stock] || 0) + 1;
+                renderAll();
+            }
+        }
+
+        function sellStock(stock) {
+            if ((portfolio[stock] || 0) > 0) {
+                cash += prices[stock];
+                portfolio[stock] -= 1;
+                renderAll();
+            }
+        }
+
+        function renderAll() {
+            renderCash();
+            renderMarket();
+            renderPortfolio();
+            drawStockGraph();
+        }
+
+        // Expose for button onclick
+        window.buyStock = buyStock;
+        window.sellStock = sellStock;
+
+        // Update loop
+        setInterval(() => {
+            updatePrices();
+            renderAll();
+        }, 2000);
+
+        renderAll();
+    </script>
+</body>
+</html>
